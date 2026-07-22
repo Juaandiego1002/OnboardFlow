@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  processes OnboardingProcess[]
+}
+
+model OnboardingProcess {
+  id             String   @id @default(cuid())
+  name           String
+  description    String   @default("")
+  durationWeeks  Int      @default(4)
+  adminId        String
+  admin          Admin    @relation(fields: [adminId], references: [id])
+  steps          Step[]
+  invites        Invite[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Step {
+  id            String   @id @default(cuid())
+  title         String
+  description   String   @default("")
+  week          Int
+  type          String   @default("task") // task, reading, meeting
+  materialUrl   String   @default("")
+  order         Int      @default(0)
+  processId     String
+  process       OnboardingProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  progress      Progress[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Invite {
+  id              String    @id @default(cuid())
+  processId       String
+  process         OnboardingProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  employeeName    String
+  employeeEmail   String
+  token           String    @unique
+  expiresAt       DateTime
+  progress        Progress[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Progress {
+  id           String   @id @default(cuid())
+  inviteId     String
+  invite       Invite   @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  stepId       String
+  step         Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  completedAt  DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([inviteId, stepId])
+}
