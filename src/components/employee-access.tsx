@@ -18,7 +18,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 
 export function EmployeeAccess() {
-  const { setView, setLoading, isLoading, setEmployeeData, pendingEmployeeToken, setPendingEmployeeToken } = useAppStore();
+  const { setView, setLoading, isLoading, setEmployeeData, setEmployeeEmail, pendingEmployeeToken, setPendingEmployeeToken } = useAppStore();
   const { toast } = useToast();
 
   const [token, setToken] = useState(pendingEmployeeToken || '');
@@ -52,11 +52,11 @@ export function EmployeeAccess() {
         return;
       }
 
-      setEmployeeData(data);
-      setView('employee-onboarding');
+      setEmployeeEmail(data.employeeEmail);
+      setView('employee-dashboard');
       toast({
         title: `Bienvenido, ${data.employeeName}`,
-        description: `Proceso: ${data.process.name}`,
+        description: 'Cargando tus procesos activos...',
       });
     } catch {
       toast({

@@ -93,6 +93,7 @@ export async function GET(
       success: true,
       inviteId: invite.id,
       employeeName: invite.employeeName,
+      employeeEmail: invite.employeeEmail,
       process: {
         id: invite.process.id,
         name: invite.process.name,

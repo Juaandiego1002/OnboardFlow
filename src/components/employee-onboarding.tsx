@@ -161,7 +161,7 @@ export function EmployeeOnboarding() {
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-3xl flex items-center gap-3 px-4 py-3">
-          <Button variant="ghost" size="sm" onClick={() => { setEmployeeData(null); setView('landing'); }}>
+          <Button variant="ghost" size="sm" onClick={() => { setEmployeeData(null); setView('employee-dashboard'); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Salir
           </Button>

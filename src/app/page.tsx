@@ -12,20 +12,18 @@ import { ViewEmployees } from '@/components/view-employees';
 import { ManageEmployees } from '@/components/manage-employees';
 import { EmployeeAccess } from '@/components/employee-access';
 import { EmployeeOnboarding } from '@/components/employee-onboarding';
-import { useEffect, useState } from 'react';
+import { EmployeeDashboard } from '@/components/employee-dashboard';
+import { useEffect, useRef, useState } from 'react';
 
 export default function Home() {
   const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
   const [closing, setClosing] = useState(false);
-  const [initialHashDone, setInitialHashDone] = useState(false);
   const admin = useAppStore((s) => s.admin);
-  const adminOnlyViews: AppView[] = ['admin-panel', 'create-process', 'manage-steps', 'manage-employees', 'view-employees', 'edit-process'];
+  const restoredHash = useRef('');
 
-  // On mount, restore view from URL hash before push effect runs
-  // Waits for admin to hydrate before restoring admin-only views
+  // Restore view from URL hash — runs ONCE on mount
+  // Sets restoredHash so pushState can start syncing
   useEffect(() => {
-    if (initialHashDone) return;
-
     const params = new URLSearchParams(window.location.search);
     if (params.has('token')) return;
 
@@ -33,59 +31,36 @@ export default function Home() {
     const validViews: AppView[] = [
       'admin-login', 'admin-panel', 'forgot-password', 'reset-password',
       'create-process', 'manage-steps', 'manage-employees',
-      'view-employees', 'employee-access', 'employee-onboarding',
+      'view-employees', 'employee-access', 'employee-onboarding', 'employee-dashboard',
     ];
 
-    if (!hash || !validViews.includes(hash as AppView)) {
-      setInitialHashDone(true);
-      return;
+    if (hash && validViews.includes(hash as AppView)) {
+      restoredHash.current = hash;
+      setView(hash as AppView);
+    } else {
+      // No valid hash — let other effects decide; mark so pushState can start
+      restoredHash.current = 'none';
     }
-
-    // Wait for admin to be available before restoring admin-only views
-    if (adminOnlyViews.includes(hash as AppView) && !admin) {
-      return;
-    }
-
-    setView(hash as AppView);
-    setInitialHashDone(true);
-  }, [setView, initialHashDone, admin]);
-
-  // Safety timeout: force initialHashDone after 3s to avoid blocking forever
-  useEffect(() => {
-    if (initialHashDone) return;
-    const id = setTimeout(() => setInitialHashDone(true), 3000);
-    return () => clearTimeout(id);
-  }, [initialHashDone]);
-
-  // Listen to back/forward navigation to restore view from URL hash
-  useEffect(() => {
-    const handlePopState = () => {
-      const hash = window.location.hash.replace('#', '');
-      const validViews: AppView[] = [
-        'admin-login', 'admin-panel', 'forgot-password', 'reset-password',
-        'create-process', 'manage-steps', 'manage-employees',
-        'view-employees', 'employee-access', 'employee-onboarding',
-      ];
-      if (hash && validViews.includes(hash as AppView)) {
-        setView(hash as AppView);
-      } else {
-        setView('landing');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
   }, [setView]);
 
-  // Push currentView to URL hash (creates history entries for back/forward)
-  // Only runs after initial hash is read to avoid overwriting the URL hash on refresh
+  // After Zustand hydration: if admin is logged in and no view was set, go to admin-panel
   useEffect(() => {
-    if (!initialHashDone) return;
+    if (!admin) return;
+    if (restoredHash.current) return; // hash already restored the view
+    restoredHash.current = 'admin-panel';
+    setView('admin-panel');
+  }, [admin]);
+
+  // Sync currentView to URL hash (creates history entries for back/forward)
+  useEffect(() => {
+    if (!restoredHash.current) return;
 
     const hasToken = window.location.search.includes('token');
     if (hasToken) return;
 
     const currentHash = window.location.hash.replace('#', '');
-    const targetHash = (currentView === 'landing' || currentView === 'employee-access') ? '' : currentView;
+    const skipHash: AppView[] = ['landing', 'employee-access', 'admin-login', 'forgot-password', 'reset-password'];
+    const targetHash = skipHash.includes(currentView) ? '' : currentView;
 
     if (currentHash !== targetHash) {
       if (targetHash) {
@@ -94,7 +69,42 @@ export default function Home() {
         window.history.pushState(null, '', window.location.pathname);
       }
     }
-  }, [currentView, initialHashDone]);
+  }, [currentView]);
+
+  // Listen to back/forward navigation
+  useEffect(() => {
+    const guestViews: AppView[] = ['admin-login', 'forgot-password', 'reset-password'];
+    const adminOnlyViews: AppView[] = [
+      'admin-panel', 'create-process', 'manage-steps', 'manage-employees',
+      'view-employees', 'edit-process',
+    ];
+    const handlePopState = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validViews: AppView[] = [
+        'admin-login', 'admin-panel', 'forgot-password', 'reset-password',
+        'create-process', 'manage-steps', 'manage-employees',
+        'view-employees', 'employee-access', 'employee-onboarding', 'employee-dashboard',
+      ];
+      if (hash && validViews.includes(hash as AppView)) {
+        const currentAdmin = useAppStore.getState().admin;
+        if (guestViews.includes(hash as AppView) && currentAdmin) {
+          window.history.replaceState(null, '', '#admin-panel');
+          setView('admin-panel');
+          return;
+        }
+        if (adminOnlyViews.includes(hash as AppView) && !currentAdmin) {
+          setView('admin-login');
+          return;
+        }
+        restoredHash.current = hash;
+        setView(hash as AppView);
+      } else {
+        setView('landing');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setView]);
 
   // Auto-clear notifications
   useEffect(() => {
@@ -146,6 +156,8 @@ export default function Home() {
         return <EmployeeAccess />;
       case 'employee-onboarding':
         return <EmployeeOnboarding />;
+      case 'employee-dashboard':
+        return <EmployeeDashboard />;
       default:
         return <LandingPage />;
     }

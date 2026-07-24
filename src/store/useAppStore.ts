@@ -63,7 +63,8 @@ export type AppView =
   | 'manage-employees'
   | 'view-employees'
   | 'employee-access'
-  | 'employee-onboarding';
+  | 'employee-onboarding'
+  | 'employee-dashboard';
 
 interface AppState {
   // Navigation
@@ -96,6 +97,24 @@ interface AppState {
     progressPercent: number;
   } | null;
   setEmployeeData: (data: AppState['employeeData']) => void;
+
+  // Employee email (used for dashboard)
+  employeeEmail: string | null;
+  setEmployeeEmail: (email: string | null) => void;
+
+  // Employee invites list (for dashboard)
+  employeeInvites: Array<{
+    id: string;
+    token: string;
+    processName: string;
+    processDescription: string;
+    durationWeeks: number;
+    totalSteps: number;
+    completedSteps: number;
+    progressPercent: number;
+    expiresAt: string;
+  }>;
+  setEmployeeInvites: (invites: AppState['employeeInvites']) => void;
 
   // Pre-filled token when switching from admin to employee test mode
   pendingEmployeeToken: string | null;
@@ -135,6 +154,14 @@ export const useAppStore = create<AppState>()(
       employeeData: null,
       setEmployeeData: (data) => set({ employeeData: data }),
 
+      // Employee email
+      employeeEmail: null,
+      setEmployeeEmail: (email) => set({ employeeEmail: email }),
+
+      // Employee invites
+      employeeInvites: [],
+      setEmployeeInvites: (invites) => set({ employeeInvites: invites }),
+
       // Pending token for employee test flow
       pendingEmployeeToken: null,
       setPendingEmployeeToken: (token) => set({ pendingEmployeeToken: token }),
@@ -156,16 +183,16 @@ export const useAppStore = create<AppState>()(
           selectedProcess: null,
           currentView: 'landing',
           employeeData: null,
+          employeeEmail: null,
+          employeeInvites: [],
         }),
     }),
     {
       name: 'onboardflow-storage',
+      // currentView is NOT persisted — URL hash is the source of truth on refresh
       partialize: (state) => ({
         admin: state.admin,
-        // Only persist views that don't require transient data (selectedProcess, employeeData)
-        currentView: ['landing', 'admin-login', 'admin-panel', 'employee-access'].includes(state.currentView)
-          ? state.currentView
-          : state.admin ? 'admin-panel' : 'landing',
+        employeeEmail: state.employeeEmail,
       }),
     }
   )

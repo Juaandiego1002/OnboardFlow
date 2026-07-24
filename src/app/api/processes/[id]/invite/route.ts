@@ -46,6 +46,18 @@ export async function POST(
       return apiError(`"${employeeName}" ya ha sido invitado a este proceso con otro correo.`);
     }
 
+    const activeInvite = await db.invite.findFirst({
+      where: {
+        employeeEmail,
+        expiresAt: { gt: new Date() },
+        processId: { not: id },
+      },
+      include: { process: { select: { name: true } } },
+    });
+    if (activeInvite) {
+      return apiError(`"${employeeEmail}" ya está participando en el proceso "${activeInvite.process.name}". Finaliza ese proceso antes de invitarlo a otro.`);
+    }
+
     const token = uuidv4();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
