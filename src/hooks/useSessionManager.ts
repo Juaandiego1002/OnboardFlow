@@ -6,7 +6,7 @@ import { useAppStore } from '@/store/useAppStore';
 const TAB_SESSION_KEY = 'ob-tab-session';
 
 export function useSessionManager() {
-  const { admin, logout } = useAppStore();
+  const { admin } = useAppStore();
   const adminRef = useRef(admin);
 
   useEffect(() => {
@@ -37,10 +37,6 @@ export function useSessionManager() {
       navigator.sendBeacon('/api/auth/tab-closed', JSON.stringify({
         adminId: currentAdmin.id,
       }));
-
-      setTimeout(() => {
-        logout();
-      }, 100);
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -48,5 +44,5 @@ export function useSessionManager() {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [admin, logout]);
+  }, [admin]);
 }
