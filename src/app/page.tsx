@@ -17,21 +17,11 @@ import { useEffect, useState } from 'react';
 export default function Home() {
   const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
   const [closing, setClosing] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
   const [initialHashDone, setInitialHashDone] = useState(false);
 
-  // Wait for Zustand persist to finish hydrating before rendering
+  // On mount, restore view from URL hash before push effect runs
   useEffect(() => {
-    const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true));
-    if (useAppStore.persist.hasHydrated()) {
-      setHydrated(true);
-    }
-    return () => unsub();
-  }, []);
-
-  // On mount (after hydration), restore view from URL hash
-  useEffect(() => {
-    if (!hydrated || initialHashDone) return;
+    if (initialHashDone) return;
     setInitialHashDone(true);
 
     const params = new URLSearchParams(window.location.search);
@@ -46,7 +36,7 @@ export default function Home() {
     if (hash && validViews.includes(hash as AppView)) {
       setView(hash as AppView);
     }
-  }, [hydrated, setView, initialHashDone]);
+  }, [setView, initialHashDone]);
 
   // Listen to back/forward navigation to restore view from URL hash
   useEffect(() => {
@@ -110,14 +100,6 @@ export default function Home() {
       window.history.replaceState(null, '', '/');
     }
   }, [setPendingEmployeeToken, setView]);
-
-  if (!hydrated) {
-    return (
-      <div className="relative min-h-screen flex items-center justify-center">
-        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-      </div>
-    );
-  }
 
   // Render based on current view
   const renderView = () => {
