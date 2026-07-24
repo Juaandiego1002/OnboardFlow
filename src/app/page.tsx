@@ -1,6 +1,6 @@
 'use client';
 
-import { useAppStore } from '@/store/useAppStore';
+import { type AppView, useAppStore } from '@/store/useAppStore';
 import { LandingPage } from '@/components/landing-page';
 import { AdminLogin } from '@/components/admin-login';
 import { ForgotPassword } from '@/components/forgot-password';
@@ -12,11 +12,55 @@ import { ViewEmployees } from '@/components/view-employees';
 import { ManageEmployees } from '@/components/manage-employees';
 import { EmployeeAccess } from '@/components/employee-access';
 import { EmployeeOnboarding } from '@/components/employee-onboarding';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export default function Home() {
   const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
   const [closing, setClosing] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
+  const initialHashHandled = useRef(false);
+
+  // Wait for Zustand persist to finish hydrating before rendering
+  useEffect(() => {
+    const unsub = useAppStore.persist.onFinishHydration(() => setHydrated(true));
+    if (useAppStore.persist.hasHydrated()) {
+      setHydrated(true);
+    }
+    return () => unsub();
+  }, []);
+
+  // On mount (after hydration), restore view from URL hash
+  useEffect(() => {
+    if (!hydrated || initialHashHandled.current) return;
+    initialHashHandled.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('token')) return;
+
+    const hash = window.location.hash.replace('#', '');
+    const validViews: AppView[] = [
+      'admin-login', 'admin-panel', 'forgot-password', 'reset-password',
+      'create-process', 'manage-steps', 'manage-employees',
+      'view-employees', 'employee-access', 'employee-onboarding',
+    ];
+    if (hash && validViews.includes(hash as AppView)) {
+      setView(hash as AppView);
+    }
+  }, [hydrated, setView]);
+
+  // Sync currentView to URL hash (enables back/forward navigation)
+  useEffect(() => {
+    const hasToken = window.location.search.includes('token');
+    if (hasToken) return;
+
+    if (currentView === 'landing' || currentView === 'employee-access') {
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    } else {
+      window.history.replaceState(null, '', `#${currentView}`);
+    }
+  }, [currentView]);
 
   // Auto-clear notifications
   useEffect(() => {
@@ -41,6 +85,14 @@ export default function Home() {
       window.history.replaceState(null, '', '/');
     }
   }, [setPendingEmployeeToken, setView]);
+
+  if (!hydrated) {
+    return (
+      <div className="relative min-h-screen flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+      </div>
+    );
+  }
 
   // Render based on current view
   const renderView = () => {
