@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,19 +12,29 @@ import {
   Loader2,
   AlertCircle,
   Link as LinkIcon,
+  Sparkles,
+  Rocket,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export function EmployeeAccess() {
-  const { setView, setLoading, isLoading, setEmployeeData } = useAppStore();
+  const { setView, setLoading, isLoading, setEmployeeData, pendingEmployeeToken, setPendingEmployeeToken } = useAppStore();
   const { toast } = useToast();
 
-  const [token, setToken] = useState('');
+  const [token, setToken] = useState(pendingEmployeeToken || '');
+  const [tokenError, setTokenError] = useState('');
+
+  useEffect(() => {
+    if (pendingEmployeeToken) {
+      setPendingEmployeeToken(null);
+    }
+  }, [pendingEmployeeToken, setPendingEmployeeToken]);
 
   const handleAccess = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTokenError('');
     if (!token.trim()) {
-      toast({ title: 'Token requerido', description: 'Introduce tu enlace de acceso.', variant: 'destructive' });
+      setTokenError('Introduce tu enlace de acceso.');
       return;
     }
 
@@ -60,10 +70,16 @@ export function EmployeeAccess() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+      {/* Background decorations */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-gradient-to-br from-teal-200/20 to-emerald-200/10 blur-3xl animate-float" />
+        <div className="absolute -bottom-20 -left-20 h-60 w-60 rounded-full bg-gradient-to-tr from-emerald-200/20 to-teal-200/10 blur-3xl animate-float-delayed" />
+      </div>
+
+      <Card className="w-full max-w-md relative">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-100">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-teal-100 to-emerald-100 shadow-inner">
             <LogIn className="h-6 w-6 text-teal-700" />
           </div>
           <CardTitle className="text-xl">Acceso de Empleado</CardTitle>
@@ -81,24 +97,36 @@ export function EmployeeAccess() {
                   id="token"
                   placeholder="Pega tu enlace de acceso aquí..."
                   value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  className="pl-10"
+                  onChange={(e) => { setToken(e.target.value); setTokenError(''); }}
+                  className={`pl-10 ${tokenError ? 'border-red-400' : ''}`}
                   disabled={isLoading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                En producción, accederías directamente desde el enlace del correo.
+              {tokenError && <p className="text-xs text-red-500">{tokenError}</p>}
+            </div>
+
+            <div className="rounded-lg bg-gradient-to-b from-muted/50 to-muted/30 p-3 border text-xs text-muted-foreground space-y-1.5">
+              <p className="flex items-center gap-1.5 font-medium text-foreground/80">
+                <Sparkles className="h-3 w-3 text-teal-600" />
+                Modo demostración
+              </p>
+              <p>
+                En producción accederías automáticamente desde el enlace del correo.
                 Para esta demo, pega el token que te dio tu administrador.
               </p>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading || !token.trim()}>
+
+            <Button type="submit" className="w-full shadow-lg shadow-teal-500/10" disabled={isLoading || !token.trim()}>
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Accediendo...
                 </>
               ) : (
-                'Acceder a mi onboarding'
+                <>
+                  <Rocket className="mr-2 h-4 w-4" />
+                  Acceder a mi onboarding
+                </>
               )}
             </Button>
           </form>

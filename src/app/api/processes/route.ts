@@ -1,17 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { processCreateSchema } from '@/lib/validations';
+import { apiError, apiSuccess } from '@/lib/api-utils';
 
-// GET /api/processes?adminId=xxx — List processes for admin
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const adminId = searchParams.get('adminId');
 
     if (!adminId) {
-      return NextResponse.json(
-        { error: 'Se requiere adminId.' },
-        { status: 400 }
-      );
+      return apiError('Se requiere adminId.');
+    }
+
+    const adminExists = await db.admin.findUnique({ where: { id: adminId } });
+    if (!adminExists) {
+      return apiError('Administrador no encontrado.', 404);
     }
 
     const processes = await db.onboardingProcess.findMany({
@@ -27,58 +30,51 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json({ processes });
+    return apiSuccess({ processes });
   } catch (error) {
     console.error('List processes error:', error);
-    return NextResponse.json(
-      { error: 'Error al obtener los procesos.' },
-      { status: 500 }
-    );
+    return apiError('Error al obtener los procesos.', 500);
   }
 }
 
-// POST /api/processes — Create a new process
 export async function POST(request: NextRequest) {
   try {
-    const { adminId, name, description, durationWeeks, steps } = await request.json();
+    const body = await request.json();
+    const parsed = processCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError(parsed.error.errors[0]?.message || 'Datos inválidos.');
+    }
 
-    if (!adminId || !name) {
-      return NextResponse.json(
-        { error: 'El nombre del proceso es obligatorio.' },
-        { status: 400 }
-      );
+    const { adminId, name, description, durationWeeks, steps } = parsed.data;
+
+    const adminExists = await db.admin.findUnique({ where: { id: adminId } });
+    if (!adminExists) {
+      return apiError('Administrador no encontrado.', 404);
     }
 
     const process = await db.onboardingProcess.create({
       data: {
         name,
-        description: description || '',
-        durationWeeks: durationWeeks || 4,
+        description,
+        durationWeeks,
         adminId,
-        steps: steps
-          ? {
-              create: steps.map(
-                (step: { title: string; description?: string; week: number; type: string; materialUrl?: string; order: number }) => ({
-                  title: step.title,
-                  description: step.description || '',
-                  week: step.week,
-                  type: step.type || 'task',
-                  materialUrl: step.materialUrl || '',
-                  order: step.order || 0,
-                })
-              ),
-            }
+        steps: steps && steps.length > 0
+          ? { create: steps.map((s) => ({
+              title: s.title,
+              description: s.description,
+              week: s.week,
+              type: s.type,
+              materialUrl: s.materialUrl,
+              order: s.order,
+            })) }
           : undefined,
       },
       include: { steps: { orderBy: { order: 'asc' } } },
     });
 
-    return NextResponse.json({ process }, { status: 201 });
+    return apiSuccess({ process }, 201);
   } catch (error) {
     console.error('Create process error:', error);
-    return NextResponse.json(
-      { error: 'Error al crear el proceso.' },
-      { status: 500 }
-    );
+    return apiError('Error al crear el proceso.', 500);
   }
 }

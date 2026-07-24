@@ -8,11 +8,38 @@ datasource db {
 }
 
 model Admin {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  passwordHash    String    @default("")
+  resetToken      String?
+  resetTokenExpiry DateTime?
+  sessions        Session[]
+  employees       Employee[]
+  processes       OnboardingProcess[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
+model Employee {
   id        String   @id @default(cuid())
-  email     String   @unique
+  name      String
+  email     String
+  adminId   String
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  processes OnboardingProcess[]
+
+  @@unique([email, adminId])
+}
+
+model Session {
+  id              String    @id @default(cuid())
+  adminId         String
+  admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  token           String    @unique
+  expiresAt       DateTime
+  pendingExpireAt DateTime?
+  createdAt       DateTime  @default(now())
 }
 
 model OnboardingProcess {
@@ -21,7 +48,7 @@ model OnboardingProcess {
   description    String   @default("")
   durationWeeks  Int      @default(4)
   adminId        String
-  admin          Admin    @relation(fields: [adminId], references: [id])
+  admin          Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
   steps          Step[]
   invites        Invite[]
   createdAt      DateTime @default(now())
@@ -57,14 +84,18 @@ model Invite {
 }
 
 model Progress {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   inviteId     String
-  invite       Invite   @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  invite       Invite    @relation(fields: [inviteId], references: [id], onDelete: Cascade)
   stepId       String
-  step         Step     @relation(fields: [stepId], references: [id], onDelete: Cascade)
-  completedAt  DateTime @default(now())
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  step         Step      @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  completedAt  DateTime  @default(now())
+  evidence     String    @default("")
+  evidenceUrl  String    @default("")
+  verifiedAt   DateTime?
+  verifiedById String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([inviteId, stepId])
 }

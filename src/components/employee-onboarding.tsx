@@ -39,14 +39,14 @@ export function EmployeeOnboarding() {
     }
   }, [employeeData]);
 
-  const handleComplete = async (stepId: string) => {
+  const handleComplete = async (stepId: string, evidence: string = '', evidenceUrl: string = '') => {
     if (!employeeData) return;
     setLoading(true);
     try {
       const res = await fetch('/api/progress', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteId: employeeData.inviteId, stepId }),
+        body: JSON.stringify({ inviteId: employeeData.inviteId, stepId, evidence, evidenceUrl }),
       });
 
       const data = await res.json();
@@ -54,17 +54,16 @@ export function EmployeeOnboarding() {
       if (res.ok && !data.alreadyCompleted) {
         toast({
           title: 'Tarea completada',
-          description: 'Has marcado esta tarea como completada.',
+          description: evidence ? 'Evidencia guardada correctamente.' : 'Has marcado esta tarea como completada.',
         });
 
-        // Update local state
         const newStepsByWeek = { ...employeeData.stepsByWeek };
         let newCompleted = employeeData.completedSteps;
 
         for (const week of Object.keys(newStepsByWeek)) {
           const weekNum = Number(week);
           newStepsByWeek[weekNum] = newStepsByWeek[weekNum].map((step) =>
-            step.id === stepId ? { ...step, completed: true } : step
+            step.id === stepId ? { ...step, completed: true, evidence, evidenceUrl, progressId: data.progress?.id || null } : step
           );
         }
 
@@ -77,6 +76,16 @@ export function EmployeeOnboarding() {
           completedSteps: newCompleted,
           progressPercent: newPercent,
         });
+      } else if (data.alreadyCompleted) {
+        // Update local state with existing evidence
+        const newStepsByWeek = { ...employeeData.stepsByWeek };
+        for (const week of Object.keys(newStepsByWeek)) {
+          const weekNum = Number(week);
+          newStepsByWeek[weekNum] = newStepsByWeek[weekNum].map((step) =>
+            step.id === stepId ? { ...step, completed: true } : step
+          );
+        }
+        setEmployeeData({ ...employeeData, stepsByWeek: newStepsByWeek });
       }
     } catch {
       toast({ title: 'Error', description: 'No se pudo actualizar el progreso.', variant: 'destructive' });
@@ -107,7 +116,7 @@ export function EmployeeOnboarding() {
         for (const week of Object.keys(newStepsByWeek)) {
           const weekNum = Number(week);
           newStepsByWeek[weekNum] = newStepsByWeek[weekNum].map((step) =>
-            step.id === stepId ? { ...step, completed: false } : step
+            step.id === stepId ? { ...step, completed: false, evidence: '', evidenceUrl: '', verifiedAt: null } : step
           );
         }
 
@@ -150,15 +159,20 @@ export function EmployeeOnboarding() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-3xl flex items-center gap-3 px-4 py-3">
           <Button variant="ghost" size="sm" onClick={() => { setEmployeeData(null); setView('landing'); }}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Salir
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="font-semibold text-sm truncate">{process.name}</h1>
-            <p className="text-xs text-muted-foreground truncate">Bienvenido, {employeeName}</p>
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0 shadow-sm">
+              <Rocket className="h-4 w-4 text-white" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="font-semibold text-sm truncate">{process.name}</h1>
+              <p className="text-xs text-muted-foreground truncate">Bienvenido, {employeeName}</p>
+            </div>
           </div>
         </div>
       </header>
@@ -166,35 +180,55 @@ export function EmployeeOnboarding() {
       {/* Main */}
       <main className="flex-1 mx-auto max-w-3xl w-full px-4 py-6 space-y-6">
         {/* Progress Overview */}
-        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3">
+        <Card className="bg-gradient-to-br from-emerald-50 via-emerald-50 to-teal-50 border-emerald-200 overflow-hidden">
+          <div className="absolute top-0 right-0 h-32 w-32 bg-[radial-gradient(circle,rgba(16,185,129,0.08),transparent_70%)]" />
+          <CardContent className="p-6 relative">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-semibold">Tu Progreso</h2>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                  <h2 className="font-semibold">Tu Progreso</h2>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   {process.durationWeeks} semanas de onboarding
                 </p>
               </div>
               <div className="text-right">
                 <span className="text-3xl font-bold text-emerald-700">{progressPercent}%</span>
+                <p className="text-xs text-muted-foreground">
+                  {completedSteps}/{totalSteps} pasos
+                </p>
               </div>
             </div>
-            <Progress value={progressPercent} className="h-3" />
-            <p className="text-sm text-muted-foreground mt-2">
-              {completedSteps} de {totalSteps} pasos completados
-            </p>
+            <div className="relative">
+              <Progress value={progressPercent} className="h-3" />
+              <div className="absolute top-0 left-0 h-3 w-full rounded-full bg-gradient-to-r from-emerald-400/20 to-teal-400/20 blur-sm" style={{ width: `${progressPercent}%` }} />
+            </div>
           </CardContent>
         </Card>
 
         {/* Completion message */}
         {isComplete && (
-          <Card className="border-emerald-300 bg-emerald-50">
-            <CardContent className="p-6 text-center">
-              <PartyPopper className="mx-auto h-12 w-12 text-emerald-600 mb-3" />
-              <h2 className="text-xl font-bold text-emerald-800 mb-2">Felicidades!</h2>
-              <p className="text-sm text-emerald-700">
-                Has completado todo tu proceso de onboarding. Bienvenido al equipo!
+          <Card className="border-emerald-300 bg-gradient-to-br from-emerald-50 via-emerald-50 to-teal-50 overflow-hidden relative">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(16,185,129,0.1),transparent_60%)]" />
+            <CardContent className="p-8 text-center relative">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 mb-4 shadow-lg shadow-emerald-500/20 animate-float">
+                <PartyPopper className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-emerald-800 mb-2">¡Felicidades!</h2>
+              <p className="text-emerald-700 mb-6 max-w-md mx-auto leading-relaxed">
+                Has completado todo tu proceso de onboarding. ¡Bienvenido al equipo!
               </p>
+              <div className="flex items-center justify-center gap-6 text-xs text-emerald-600">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {completedSteps} pasos completados
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  {process.durationWeeks} semanas de duración
+                </span>
+              </div>
             </CardContent>
           </Card>
         )}
@@ -215,6 +249,8 @@ export function EmployeeOnboarding() {
                       <span className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${
                         weekPercent === 100
                           ? 'bg-emerald-100 text-emerald-700'
+                          : weekPercent > 0
+                          ? 'bg-amber-100 text-amber-700'
                           : 'bg-muted text-muted-foreground'
                       }`}>
                         {weekPercent === 100 ? <CheckCircle2 className="h-4 w-4" /> : week}
@@ -224,11 +260,18 @@ export function EmployeeOnboarding() {
                         ({weekCompleted}/{weekTotal})
                       </span>
                     </CardTitle>
-                    <Badge variant={weekPercent === 100 ? 'default' : 'outline'} className={
-                      weekPercent === 100 ? 'bg-emerald-100 text-emerald-800' : ''
-                    }>
-                      {weekPercent}%
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-500 ${
+                          weekPercent === 100 ? 'bg-emerald-500' : 'bg-amber-400'
+                        }`} style={{ width: `${weekPercent}%` }} />
+                      </div>
+                      <Badge variant={weekPercent === 100 ? 'default' : 'outline'} className={
+                        weekPercent === 100 ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : ''
+                      }>
+                        {weekPercent}%
+                      </Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">

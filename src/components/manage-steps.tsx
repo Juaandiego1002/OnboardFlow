@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAppStore } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Loader2,
   ArrowLeft,
@@ -18,7 +19,12 @@ import {
   Circle,
   BookOpen,
   Users,
+  User,
+  Mail,
   GripVertical,
+  ChevronDown,
+  UserPlus,
+  Send,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -67,6 +73,81 @@ export function ManageSteps() {
   const [editStepWeek, setEditStepWeek] = useState(1);
   const [editStepType, setEditStepType] = useState('task');
   const [editStepUrl, setEditStepUrl] = useState('');
+
+  // Employee selection
+  interface Employee {
+    id: string;
+    name: string;
+    email: string;
+  }
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployees, setSelectedEmployees] = useState<Set<string>>(new Set());
+  const [showEmployees, setShowEmployees] = useState(false);
+  const [inviting, setInviting] = useState(false);
+
+  useEffect(() => {
+    if (!admin) return;
+    fetch(`/api/employees?adminId=${admin.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.employees) setEmployees(data.employees);
+      })
+      .catch(() => {});
+  }, [admin]);
+
+  const toggleEmployee = (id: string) => {
+    setSelectedEmployees((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleInviteSelected = async () => {
+    if (!process || selectedEmployees.size === 0) return;
+    setInviting(true);
+    const selected = employees.filter((e) => selectedEmployees.has(e.id));
+    let sent = 0;
+    for (const emp of selected) {
+      try {
+        const res = await fetch(`/api/processes/${process.id}/invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employeeName: emp.name, employeeEmail: emp.email }),
+        });
+        if (res.ok) sent++;
+      } catch { /* skip */ }
+    }
+    if (sent > 0) {
+      toast({ title: 'Invitaciones enviadas', description: `${sent} empleado${sent > 1 ? 's' : ''} invitado${sent > 1 ? 's' : ''}.` });
+      setSelectedEmployees(new Set());
+      refreshData();
+    } else {
+      toast({ title: 'Error', description: 'No se pudieron enviar las invitaciones.', variant: 'destructive' });
+    }
+    setInviting(false);
+  };
+
+  const [deletingInvite, setDeletingInvite] = useState<string | null>(null);
+
+  const handleDeleteInvite = async (inviteId: string, employeeName: string) => {
+    setDeletingInvite(inviteId);
+    try {
+      const res = await fetch(`/api/invite/${inviteId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: 'Invitación eliminada', description: `Invitación de ${employeeName} eliminada.` });
+        refreshData();
+      } else {
+        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+      }
+    } catch {
+      toast({ title: 'Error', description: 'No se pudo eliminar la invitación.', variant: 'destructive' });
+    } finally {
+      setDeletingInvite(null);
+    }
+  };
 
   const refreshData = async () => {
     if (!admin) return;
@@ -262,20 +343,128 @@ export function ManageSteps() {
           </CardContent>
         </Card>
 
+        {/* Employees */}
+          <Card className="group">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-200 flex items-center justify-center">
+                    <Users className="h-4 w-4 text-emerald-700" />
+                  </div>
+                  Empleados
+                  {invites.length > 0 && (
+                    <Badge variant="secondary" className="text-[10px] bg-emerald-100 text-emerald-700 ml-1">
+                      {invites.length} invitado{invites.length > 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={() => setShowEmployees(!showEmployees)}>
+                  <ChevronDown className={`mr-1 h-4 w-4 transition-transform ${showEmployees ? 'rotate-180' : ''}`} />
+                  {showEmployees ? 'Ocultar' : 'Invitar'}
+                </Button>
+              </div>
+          </CardHeader>
+          {showEmployees && (
+            <CardContent>
+              {employees.length === 0 ? (
+                <div className="text-center py-6">
+                  <Users className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-3">
+                    No hay empleados registrados. Agrégalos primero.
+                  </p>
+                  <Button variant="outline" size="sm" onClick={() => { refreshData(); setView('manage-employees'); }}>
+                    <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                    Gestionar empleados
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1 max-h-48 overflow-y-auto mb-3">
+                    {employees.map((emp) => (
+                      <label
+                        key={emp.id}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2 cursor-pointer transition-colors ${
+                          selectedEmployees.has(emp.id)
+                            ? 'bg-gradient-to-b from-emerald-500/10 to-emerald-500/5 backdrop-blur-sm border border-emerald-400/20'
+                            : 'hover:bg-muted/50'
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedEmployees.has(emp.id)}
+                          onCheckedChange={() => toggleEmployee(emp.id)}
+                        />
+                        <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{emp.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{emp.email}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    disabled={selectedEmployees.size === 0 || inviting}
+                    onClick={handleInviteSelected}
+                  >
+                    {inviting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="mr-2 h-4 w-4" />
+                    )}
+                    Invitar {selectedEmployees.size > 0 ? `(${selectedEmployees.size})` : ''}
+                  </Button>
+                </>
+              )}
+              {/* Already invited list */}
+              {invites.length > 0 && (
+                <>
+                  <Separator className="my-3" />
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Ya invitados</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {invites.map((inv) => (
+                      <div key={inv.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded-md bg-gradient-to-b from-muted/50 to-muted/30 backdrop-blur-sm group">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                        <span className="truncate">{inv.employeeName}</span>
+                        <span className="text-xs text-muted-foreground ml-auto">{inv.employeeEmail}</span>
+                        <button
+                          type="button"
+                          className="h-5 w-5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                          onClick={() => handleDeleteInvite(inv.id, inv.employeeName)}
+                          disabled={deletingInvite === inv.id}
+                          title="Eliminar invitación"
+                        >
+                          {deletingInvite === inv.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
+
         {/* Steps by Week */}
         {Object.entries(stepsByWeek)
           .sort(([a], [b]) => Number(a) - Number(b))
           .map(([week, weekSteps]) => (
-            <Card key={week}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <span className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
-                    {week}
-                  </span>
-                  Semana {week}
-                  <span className="text-xs font-normal text-muted-foreground">({weekSteps.length} paso{weekSteps.length !== 1 ? 's' : ''})</span>
-                </CardTitle>
-              </CardHeader>
+              <Card key={week} className="overflow-hidden">
+                <CardHeader className="pb-3 bg-gradient-to-r from-emerald-50/50 to-transparent">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <span className="h-7 w-7 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      {week}
+                    </span>
+                    Semana {week}
+                    <Badge variant="outline" className="text-[10px] font-normal">
+                      {weekSteps.length} paso{weekSteps.length !== 1 ? 's' : ''}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
               <CardContent className="space-y-3">
                 {weekSteps.map((step) => {
                   const typeInfo = stepTypeConfig[step.type as keyof typeof stepTypeConfig] || stepTypeConfig.task;

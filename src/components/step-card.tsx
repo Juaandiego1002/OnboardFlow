@@ -1,9 +1,14 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { CheckCircle2, Circle, BookOpen, Users } from 'lucide-react';
+import { CheckCircle2, Circle, BookOpen, Users, FileText, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 
 const stepTypeConfig = {
   task: { label: 'Tarea', variant: 'default' as const, icon: CheckCircle2 },
@@ -26,28 +31,59 @@ export function StepCard({
   onUndo,
   isEmployeeView = false,
 }: {
-  step: { id: string; title: string; description: string; type: string; materialUrl: string; completed?: boolean };
-  onComplete?: (stepId: string) => void;
+  step: {
+    id: string;
+    title: string;
+    description: string;
+    type: string;
+    materialUrl: string;
+    completed?: boolean;
+    evidence?: string;
+    evidenceUrl?: string;
+    verifiedAt?: string | null;
+  };
+  onComplete?: (stepId: string, evidence: string, evidenceUrl: string) => void;
   onUndo?: (stepId: string) => void;
   isEmployeeView?: boolean;
 }) {
+  const [showEvidenceForm, setShowEvidenceForm] = useState(false);
+  const [evidence, setEvidence] = useState('');
+  const [evidenceUrl, setEvidenceUrl] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleComplete = async () => {
+    setSubmitting(true);
+    await onComplete?.(step.id, evidence, evidenceUrl);
+    setSubmitting(false);
+    setShowEvidenceForm(false);
+    setEvidence('');
+    setEvidenceUrl('');
+  };
+
+  const handleClick = () => {
+    if (step.completed) {
+      onUndo?.(step.id);
+    } else if (isEmployeeView) {
+      setShowEvidenceForm(true);
+    }
+  };
+
   return (
     <div
       className={cn(
-        'group relative rounded-xl border p-4 transition-all duration-200',
+        'group relative rounded-xl border transition-all duration-200',
         step.completed
           ? 'border-emerald-200 bg-emerald-50/50'
           : 'border-border bg-card hover:border-emerald-300 hover:shadow-sm'
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-3 p-4">
         {/* Checkbox */}
         {isEmployeeView && (
           <button
-            onClick={() =>
-              step.completed ? onUndo?.(step.id) : onComplete?.(step.id)
-            }
+            onClick={handleClick}
             className="mt-0.5 flex-shrink-0 transition-transform hover:scale-110"
+            disabled={submitting}
           >
             {step.completed ? (
               <CheckCircle2 className="h-5 w-5 text-emerald-600" />
@@ -85,6 +121,73 @@ export function StepCard({
               <BookOpen className="h-3.5 w-3.5" />
               Ver material adjunto
             </a>
+          )}
+
+          {/* Evidence display */}
+          {step.completed && (
+            <div className="mt-3 space-y-1.5">
+              {step.evidence && (
+                <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <FileText className="h-3 w-3 mt-0.5 shrink-0" />
+                  <span>{step.evidence}</span>
+                </div>
+              )}
+              {step.evidenceUrl && (
+                <a
+                  href={step.evidenceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-xs text-emerald-600 hover:underline"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Ver evidencia
+                </a>
+              )}
+              {step.verifiedAt && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-700">
+                  <ShieldCheck className="h-3 w-3" />
+                  Verificada
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Evidence form */}
+          {showEvidenceForm && !step.completed && (
+            <div className="mt-3 space-y-2 border-t pt-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Nota de finalización</Label>
+                <Textarea
+                  placeholder="Describe qué hiciste para completar esta tarea..."
+                  value={evidence}
+                  onChange={(e) => setEvidence(e.target.value)}
+                  rows={2}
+                  className="text-xs"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">URL de evidencia (opcional)</Label>
+                <Input
+                  placeholder="https://..."
+                  value={evidenceUrl}
+                  onChange={(e) => setEvidenceUrl(e.target.value)}
+                  className="text-xs"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleComplete} disabled={submitting}>
+                  {submitting ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-1 h-3 w-3" />
+                  )}
+                  Confirmar finalización
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowEvidenceForm(false)}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
           )}
         </div>
       </div>

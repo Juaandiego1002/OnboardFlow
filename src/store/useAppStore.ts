@@ -12,6 +12,10 @@ export interface Step {
   order: number;
   completed?: boolean;
   completedAt?: string | null;
+  progressId?: string | null;
+  evidence?: string;
+  evidenceUrl?: string;
+  verifiedAt?: string | null;
 }
 
 export interface Invite {
@@ -51,9 +55,12 @@ export type AppView =
   | 'landing'
   | 'admin-login'
   | 'admin-panel'
+  | 'forgot-password'
+  | 'reset-password'
   | 'create-process'
   | 'edit-process'
   | 'manage-steps'
+  | 'manage-employees'
   | 'view-employees'
   | 'employee-access'
   | 'employee-onboarding';
@@ -90,6 +97,10 @@ interface AppState {
   } | null;
   setEmployeeData: (data: AppState['employeeData']) => void;
 
+  // Pre-filled token when switching from admin to employee test mode
+  pendingEmployeeToken: string | null;
+  setPendingEmployeeToken: (token: string | null) => void;
+
   // Loading states
   isLoading: boolean;
   setLoading: (loading: boolean) => void;
@@ -123,6 +134,10 @@ export const useAppStore = create<AppState>()(
       // Employee
       employeeData: null,
       setEmployeeData: (data) => set({ employeeData: data }),
+
+      // Pending token for employee test flow
+      pendingEmployeeToken: null,
+      setPendingEmployeeToken: (token) => set({ pendingEmployeeToken: token }),
 
       // Loading
       isLoading: false,

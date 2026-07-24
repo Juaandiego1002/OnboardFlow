@@ -1,7 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { apiError, apiSuccess } from '@/lib/api-utils';
 
-// GET /api/invite/[token] — Employee accesses their onboarding
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> }
+) {
+  try {
+    const { token } = await params;
+    const invite = await db.invite.findUnique({ where: { id: token } });
+    if (!invite) {
+      return apiError('Invitación no encontrada.', 404);
+    }
+    await db.invite.delete({ where: { id: token } });
+    return apiSuccess({ success: true });
+  } catch (error) {
+    console.error('Delete invite error:', error);
+    return apiError('Error al eliminar la invitación.', 500);
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -10,10 +28,7 @@ export async function GET(
     const { token } = await params;
 
     if (!token) {
-      return NextResponse.json(
-        { error: 'Este enlace no es válido o ha expirado. Pide a tu administrador que te envíe uno nuevo.' },
-        { status: 400 }
-      );
+      return apiError('Este enlace no es válido o ha expirado. Pide a tu administrador que te envíe uno nuevo.');
     }
 
     const invite = await db.invite.findUnique({
@@ -29,17 +44,11 @@ export async function GET(
     });
 
     if (!invite) {
-      return NextResponse.json(
-        { error: 'Este enlace no es válido o ha expirado. Pide a tu administrador que te envíe uno nuevo.' },
-        { status: 404 }
-      );
+      return apiError('Este enlace no es válido o ha expirado. Pide a tu administrador que te envíe uno nuevo.', 404);
     }
 
     if (new Date() > invite.expiresAt) {
-      return NextResponse.json(
-        { error: 'Este enlace ha expirado. Pide a tu administrador que te envíe uno nuevo.' },
-        { status: 410 }
-      );
+      return apiError('Este enlace ha expirado. Pide a tu administrador que te envíe uno nuevo.', 410);
     }
 
     const completedStepIds = new Set(invite.progress.map((p) => p.stepId));
@@ -58,6 +67,7 @@ export async function GET(
     for (const step of invite.process.steps) {
       const week = step.week;
       if (!stepsByWeek[week]) stepsByWeek[week] = [];
+      const prog = invite.progress.find((p) => p.stepId === step.id);
       stepsByWeek[week].push({
         id: step.id,
         title: step.title,
@@ -67,7 +77,11 @@ export async function GET(
         materialUrl: step.materialUrl,
         order: step.order,
         completed: completedStepIds.has(step.id),
-        completedAt: invite.progress.find((p) => p.stepId === step.id)?.completedAt?.toISOString() || null,
+        completedAt: prog?.completedAt?.toISOString() || null,
+        progressId: prog?.id || null,
+        evidence: prog?.evidence || '',
+        evidenceUrl: prog?.evidenceUrl || '',
+        verifiedAt: prog?.verifiedAt?.toISOString() || null,
       });
     }
 
@@ -75,7 +89,7 @@ export async function GET(
     const completedSteps = completedStepIds.size;
     const progressPercent = totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0;
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       inviteId: invite.id,
       employeeName: invite.employeeName,
@@ -92,9 +106,6 @@ export async function GET(
     });
   } catch (error) {
     console.error('Invite access error:', error);
-    return NextResponse.json(
-      { error: 'Error al acceder al proceso de onboarding.' },
-      { status: 500 }
-    );
+    return apiError('Error al acceder al proceso de onboarding.', 500);
   }
 }

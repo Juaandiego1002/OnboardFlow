@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { apiError, apiSuccess } from '@/lib/api-utils';
 
-// PUT /api/steps/[id] — Update a single step
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -9,6 +9,11 @@ export async function PUT(
   try {
     const { id } = await params;
     const data = await request.json();
+
+    const existing = await db.step.findUnique({ where: { id } });
+    if (!existing) {
+      return apiError('Paso no encontrado.', 404);
+    }
 
     const step = await db.step.update({
       where: { id },
@@ -22,30 +27,29 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({ step });
+    return apiSuccess({ step });
   } catch (error) {
     console.error('Update step error:', error);
-    return NextResponse.json(
-      { error: 'Error al actualizar el paso.' },
-      { status: 500 }
-    );
+    return apiError('Error al actualizar el paso.', 500);
   }
 }
 
-// DELETE /api/steps/[id] — Delete a step
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+
+    const existing = await db.step.findUnique({ where: { id } });
+    if (!existing) {
+      return apiError('Paso no encontrado.', 404);
+    }
+
     await db.step.delete({ where: { id } });
-    return NextResponse.json({ success: true });
+    return apiSuccess({ success: true });
   } catch (error) {
     console.error('Delete step error:', error);
-    return NextResponse.json(
-      { error: 'Error al eliminar el paso.' },
-      { status: 500 }
-    );
+    return apiError('Error al eliminar el paso.', 500);
   }
 }

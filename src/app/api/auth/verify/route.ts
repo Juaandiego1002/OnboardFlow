@@ -1,16 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { verifySchema } from '@/lib/validations';
+import { apiError, apiSuccess } from '@/lib/api-utils';
 
-// POST /api/auth/verify — Verify magic link token
 export async function POST(request: NextRequest) {
   try {
-    const { adminId } = await request.json();
+    const body = await request.json();
+    const parsed = verifySchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Token no válido.');
+    }
 
-    if (!adminId) {
-      return NextResponse.json(
-        { error: 'Token no válido.' },
-        { status: 400 }
-      );
+    const { adminId } = parsed.data;
+
+    const session = await db.session.findFirst({
+      where: {
+        adminId,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!session) {
+      return apiError('Sesión no válida o expirada. Inicia sesión nuevamente.', 401);
+    }
+
+    if (session.pendingExpireAt && session.pendingExpireAt <= new Date()) {
+      await db.session.delete({ where: { id: session.id } });
+      return apiError('Sesión expirada por cierre de pestaña. Inicia sesión nuevamente.', 401);
     }
 
     const admin = await db.admin.findUnique({
@@ -31,22 +48,16 @@ export async function POST(request: NextRequest) {
     });
 
     if (!admin) {
-      return NextResponse.json(
-        { error: 'Token no válido o expirado.' },
-        { status: 401 }
-      );
+      return apiError('Administrador no encontrado.', 404);
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       admin: { id: admin.id, email: admin.email },
       processes: admin.processes,
     });
   } catch (error) {
     console.error('Verify error:', error);
-    return NextResponse.json(
-      { error: 'Error al verificar el token.' },
-      { status: 500 }
-    );
+    return apiError('Error al verificar la sesión.', 500);
   }
 }

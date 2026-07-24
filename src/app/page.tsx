@@ -3,24 +3,44 @@
 import { useAppStore } from '@/store/useAppStore';
 import { LandingPage } from '@/components/landing-page';
 import { AdminLogin } from '@/components/admin-login';
+import { ForgotPassword } from '@/components/forgot-password';
+import { ResetPassword } from '@/components/reset-password';
 import { AdminPanel } from '@/components/admin-panel';
 import { CreateProcess } from '@/components/create-process';
 import { ManageSteps } from '@/components/manage-steps';
 import { ViewEmployees } from '@/components/view-employees';
+import { ManageEmployees } from '@/components/manage-employees';
 import { EmployeeAccess } from '@/components/employee-access';
 import { EmployeeOnboarding } from '@/components/employee-onboarding';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Home() {
-  const { currentView, clearNotification, notification, isLoading } = useAppStore();
+  const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
+  const [closing, setClosing] = useState(false);
 
   // Auto-clear notifications
   useEffect(() => {
     if (notification) {
-      const timer = setTimeout(clearNotification, 5000);
-      return () => clearTimeout(timer);
+      setClosing(false);
+      const closeTimer = setTimeout(() => setClosing(true), 3000);
+      const removeTimer = setTimeout(clearNotification, 4000);
+      return () => {
+        clearTimeout(closeTimer);
+        clearTimeout(removeTimer);
+      };
     }
   }, [notification, clearNotification]);
+
+  // Detect ?token=xxx from URL (email link)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      setPendingEmployeeToken(token);
+      setView('employee-access');
+      window.history.replaceState(null, '', '/');
+    }
+  }, [setPendingEmployeeToken, setView]);
 
   // Render based on current view
   const renderView = () => {
@@ -31,11 +51,17 @@ export default function Home() {
         return <AdminLogin />;
       case 'admin-panel':
         return <AdminPanel />;
+      case 'forgot-password':
+        return <ForgotPassword />;
+      case 'reset-password':
+        return <ResetPassword />;
       case 'create-process':
         return <CreateProcess />;
       case 'edit-process':
       case 'manage-steps':
         return <ManageSteps />;
+      case 'manage-employees':
+        return <ManageEmployees />;
       case 'view-employees':
         return <ViewEmployees />;
       case 'employee-access':
@@ -52,16 +78,18 @@ export default function Home() {
       {/* Notification Toast */}
       {notification && (
         <div
-          className={`fixed top-4 right-4 z-[100] max-w-sm rounded-lg border p-4 shadow-lg transition-all duration-300 animate-in slide-in-from-top-2 ${
+          className={`fixed top-4 right-4 z-[100] max-w-sm rounded-lg border p-4 shadow-lg transition-all duration-500 ${
+            closing ? 'opacity-0 translate-y-[-8px]' : 'opacity-100 animate-in slide-in-from-top-2'
+          } ${
             notification.type === 'success'
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-red-200 bg-red-50 text-red-800'
+              ? 'border-amber-400/30 bg-gradient-to-b from-amber-500/10 to-amber-500/5 backdrop-blur-md text-amber-800 dark:text-amber-300 dark:border-amber-400/20'
+              : 'border-red-400/30 bg-gradient-to-b from-red-500/10 to-red-500/5 backdrop-blur-md text-red-700 dark:text-red-300 dark:border-red-400/20'
           }`}
         >
           <div className="flex items-start gap-3">
             <div
               className={`h-5 w-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                notification.type === 'success' ? 'bg-emerald-200' : 'bg-red-200'
+                notification.type === 'success' ? 'bg-amber-500/20 text-amber-600 dark:text-amber-300' : 'bg-red-500/20 text-red-600 dark:text-red-300'
               }`}
             >
               <span className="text-xs font-bold">

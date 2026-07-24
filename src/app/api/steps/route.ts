@@ -1,75 +1,61 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { db } from '@/lib/db';
+import { stepCreateSchema, stepBatchUpdateSchema } from '@/lib/validations';
+import { apiError, apiSuccess } from '@/lib/api-utils';
 
-// POST /api/steps — Add a step to a process
 export async function POST(request: NextRequest) {
   try {
-    const { processId, title, description, week, type, materialUrl, order } = await request.json();
+    const body = await request.json();
+    const parsed = stepCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError(parsed.error.errors[0]?.message || 'El título del paso es obligatorio.');
+    }
 
-    if (!processId || !title) {
-      return NextResponse.json(
-        { error: 'El título del paso es obligatorio.' },
-        { status: 400 }
-      );
+    const { processId, title, description, week, type, materialUrl, order } = parsed.data;
+
+    const process = await db.onboardingProcess.findUnique({ where: { id: processId } });
+    if (!process) {
+      return apiError('Proceso no encontrado.', 404);
     }
 
     const step = await db.step.create({
-      data: {
-        processId,
-        title,
-        description: description || '',
-        week: week || 1,
-        type: type || 'task',
-        materialUrl: materialUrl || '',
-        order: order || 0,
-      },
+      data: { processId, title, description, week, type, materialUrl, order },
     });
 
-    return NextResponse.json({ step }, { status: 201 });
+    return apiSuccess({ step }, 201);
   } catch (error) {
     console.error('Create step error:', error);
-    return NextResponse.json(
-      { error: 'Error al crear el paso.' },
-      { status: 500 }
-    );
+    return apiError('Error al crear el paso.', 500);
   }
 }
 
-// PUT /api/steps — Update a step (batch reorder or single update)
 export async function PUT(request: NextRequest) {
   try {
-    const { steps } = await request.json();
-
-    if (!steps || !Array.isArray(steps)) {
-      return NextResponse.json(
-        { error: 'Se requiere un array de pasos.' },
-        { status: 400 }
-      );
+    const body = await request.json();
+    const parsed = stepBatchUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError('Se requiere un array de pasos.');
     }
 
-    // Batch update steps
     const results = await Promise.all(
-      steps.map((step: { id: string; title?: string; description?: string; week?: number; type?: string; materialUrl?: string; order?: number }) =>
+      parsed.data.steps.map((s) =>
         db.step.update({
-          where: { id: step.id },
+          where: { id: s.id },
           data: {
-            ...(step.title !== undefined && { title: step.title }),
-            ...(step.description !== undefined && { description: step.description }),
-            ...(step.week !== undefined && { week: step.week }),
-            ...(step.type !== undefined && { type: step.type }),
-            ...(step.materialUrl !== undefined && { materialUrl: step.materialUrl }),
-            ...(step.order !== undefined && { order: step.order }),
+            ...(s.title !== undefined && { title: s.title }),
+            ...(s.description !== undefined && { description: s.description }),
+            ...(s.week !== undefined && { week: s.week }),
+            ...(s.type !== undefined && { type: s.type }),
+            ...(s.materialUrl !== undefined && { materialUrl: s.materialUrl }),
+            ...(s.order !== undefined && { order: s.order }),
           },
         })
       )
     );
 
-    return NextResponse.json({ steps: results });
+    return apiSuccess({ steps: results });
   } catch (error) {
     console.error('Update steps error:', error);
-    return NextResponse.json(
-      { error: 'Error al actualizar los pasos.' },
-      { status: 500 }
-    );
+    return apiError('Error al actualizar los pasos.', 500);
   }
 }
