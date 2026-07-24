@@ -48,17 +48,39 @@ export default function Home() {
     }
   }, [hydrated, setView]);
 
-  // Sync currentView to URL hash (enables back/forward navigation)
+  // Listen to back/forward navigation to restore view from URL hash
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash.replace('#', '');
+      const validViews: AppView[] = [
+        'admin-login', 'admin-panel', 'forgot-password', 'reset-password',
+        'create-process', 'manage-steps', 'manage-employees',
+        'view-employees', 'employee-access', 'employee-onboarding',
+      ];
+      if (hash && validViews.includes(hash as AppView)) {
+        setView(hash as AppView);
+      } else {
+        setView('landing');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [setView]);
+
+  // Push currentView to URL hash (creates history entries for back/forward)
   useEffect(() => {
     const hasToken = window.location.search.includes('token');
     if (hasToken) return;
 
-    if (currentView === 'landing' || currentView === 'employee-access') {
-      if (window.location.hash) {
-        window.history.replaceState(null, '', window.location.pathname);
+    const currentHash = window.location.hash.replace('#', '');
+    const targetHash = (currentView === 'landing' || currentView === 'employee-access') ? '' : currentView;
+
+    if (currentHash !== targetHash) {
+      if (targetHash) {
+        window.history.pushState(null, '', `#${targetHash}`);
+      } else if (currentHash) {
+        window.history.pushState(null, '', window.location.pathname);
       }
-    } else {
-      window.history.replaceState(null, '', `#${currentView}`);
     }
   }, [currentView]);
 
