@@ -18,11 +18,13 @@ export default function Home() {
   const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
   const [closing, setClosing] = useState(false);
   const [initialHashDone, setInitialHashDone] = useState(false);
+  const admin = useAppStore((s) => s.admin);
+  const adminOnlyViews: AppView[] = ['admin-panel', 'create-process', 'manage-steps', 'manage-employees', 'view-employees', 'edit-process'];
 
   // On mount, restore view from URL hash before push effect runs
+  // Waits for admin to hydrate before restoring admin-only views
   useEffect(() => {
     if (initialHashDone) return;
-    setInitialHashDone(true);
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('token')) return;
@@ -33,10 +35,27 @@ export default function Home() {
       'create-process', 'manage-steps', 'manage-employees',
       'view-employees', 'employee-access', 'employee-onboarding',
     ];
-    if (hash && validViews.includes(hash as AppView)) {
-      setView(hash as AppView);
+
+    if (!hash || !validViews.includes(hash as AppView)) {
+      setInitialHashDone(true);
+      return;
     }
-  }, [setView, initialHashDone]);
+
+    // Wait for admin to be available before restoring admin-only views
+    if (adminOnlyViews.includes(hash as AppView) && !admin) {
+      return;
+    }
+
+    setView(hash as AppView);
+    setInitialHashDone(true);
+  }, [setView, initialHashDone, admin]);
+
+  // Safety timeout: force initialHashDone after 3s to avoid blocking forever
+  useEffect(() => {
+    if (initialHashDone) return;
+    const id = setTimeout(() => setInitialHashDone(true), 3000);
+    return () => clearTimeout(id);
+  }, [initialHashDone]);
 
   // Listen to back/forward navigation to restore view from URL hash
   useEffect(() => {
