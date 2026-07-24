@@ -1,15 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
   serverExternalPackages: ["@prisma/client", "prisma"],
-  outputFileTracingIncludes: {
-    "/**": ["./node_modules/.prisma/client/**"],
-  },
 };
 
 export default nextConfig;
