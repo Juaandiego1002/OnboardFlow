@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   title: "OnboardFlow — Onboarding para Startups",
   description: "Guía a nuevos empleados de startups por un proceso de onboarding estructurado durante sus primeras semanas.",
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/logo.svg",
   },
 };
 
