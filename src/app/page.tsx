@@ -12,13 +12,13 @@ import { ViewEmployees } from '@/components/view-employees';
 import { ManageEmployees } from '@/components/manage-employees';
 import { EmployeeAccess } from '@/components/employee-access';
 import { EmployeeOnboarding } from '@/components/employee-onboarding';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Home() {
   const { currentView, clearNotification, notification, isLoading, setView, setPendingEmployeeToken } = useAppStore();
   const [closing, setClosing] = useState(false);
   const [hydrated, setHydrated] = useState(false);
-  const initialHashHandled = useRef(false);
+  const [initialHashDone, setInitialHashDone] = useState(false);
 
   // Wait for Zustand persist to finish hydrating before rendering
   useEffect(() => {
@@ -31,8 +31,8 @@ export default function Home() {
 
   // On mount (after hydration), restore view from URL hash
   useEffect(() => {
-    if (!hydrated || initialHashHandled.current) return;
-    initialHashHandled.current = true;
+    if (!hydrated || initialHashDone) return;
+    setInitialHashDone(true);
 
     const params = new URLSearchParams(window.location.search);
     if (params.has('token')) return;
@@ -46,7 +46,7 @@ export default function Home() {
     if (hash && validViews.includes(hash as AppView)) {
       setView(hash as AppView);
     }
-  }, [hydrated, setView]);
+  }, [hydrated, setView, initialHashDone]);
 
   // Listen to back/forward navigation to restore view from URL hash
   useEffect(() => {
@@ -68,7 +68,10 @@ export default function Home() {
   }, [setView]);
 
   // Push currentView to URL hash (creates history entries for back/forward)
+  // Only runs after initial hash is read to avoid overwriting the URL hash on refresh
   useEffect(() => {
+    if (!initialHashDone) return;
+
     const hasToken = window.location.search.includes('token');
     if (hasToken) return;
 
@@ -82,7 +85,7 @@ export default function Home() {
         window.history.pushState(null, '', window.location.pathname);
       }
     }
-  }, [currentView]);
+  }, [currentView, initialHashDone]);
 
   // Auto-clear notifications
   useEffect(() => {
