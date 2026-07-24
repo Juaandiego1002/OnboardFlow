@@ -19,7 +19,8 @@ export const metadata: Metadata = {
   title: "OnboardFlow — Onboarding para Startups",
   description: "Guía a nuevos empleados de startups por un proceso de onboarding estructurado durante sus primeras semanas.",
   icons: {
-    icon: "/logo.svg",
+    icon: '/icon.svg',
+    apple: '/apple-icon.svg',
   },
 };
 
